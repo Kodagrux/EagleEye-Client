@@ -1,19 +1,25 @@
 #include <SPI.h>
-
-//#include <nRF24L01.h>
-//#include <printf.h>
 #include <RF24.h>
-//#include <RF24_config.h>
 
-int pinIntMotion = 2;
+
+int pinIntMotion = 2; //Digital pin for motion sensor
+
+
+bool debug = true;
+bool alarmArmed = false;
+bool alarmTriggered = false;
+int heartBeatIntervall = 3000;
+int sensorUnitID = 1;
+
 //int pinIntSpeaker = 8;
 
 RF24 radio(9,10);
 
 void setup() {
-  while(!Serial);
-  Serial.begin(115200);
-
+  if (debug) {
+    while(!Serial);
+    Serial.begin(115200);
+  }
 
   
   radio.begin();
@@ -32,8 +38,98 @@ void setup() {
   pinMode(pinIntMotion, INPUT);
   //pinMode(pinIntSpeaker, OUTPUT);
   //tone(pinIntSpeaker, 3000, 3); 
+
+  if (debug) { Serial.println("Setup complete! Starting...");}
 }
 
+
+
+
+
+
+
+
+
+
+void loop() {
+
+  char com[32] = {0}; //Communication array (String)
+
+  //If alarm is not triggered
+  if (!alarmTriggered) {
+
+    //If alarm is armed
+    if (alarmArmed) {
+      if (debug) { Serial.println("Alarm: Armed!");}
+      int motion = digitalRead(pinIntMotion);
+  
+      //If there is motion
+      if (motion == 1) {
+        alarmTriggered = true;
+        if (debug) { Serial.println("Something is moving!");}
+        char comReply[] = "1,MOTION"; //Creating reply, ID + What
+        radio.write(comReply, sizeof(comReply));
+        if (debug) { Serial.println("Messaging base!");}
+        
+        delay(100); //Waiting so we don't spam the network
+        if (debug) {Serial.println("Sleeping for a bit...");}
+        
+      //If there is no motion
+      } else {
+        if (debug) { Serial.println("All clear!, going to sleep for a bit...");}
+        delay(100);
+      }
+
+
+  //If alarm is disarmed
+    } else {
+      if (debug) { Serial.println("Alarm: Disarmed!");}
+      radio.startListening(); //See if there is something recived
+  
+      //If message is recived
+      if(radio.available()){
+        if (debug) { Serial.println("Message Recived!");}
+        radio.read(com, sizeof(com)); //Read the message
+        radio.stopListening(); //Turn of radio
+        String stringCom(com); //Convert message to string
+        if (debug) { Serial.println("Message was: '" + stringCom + "'");}
+        
+        //If unit is told to be armed
+        if  (stringCom == "ARM" ) {
+          if (debug) { Serial.println("Arming order recived!");}
+          alarmArmed = true;
+          char comReply[] = "1,ARMED"; //Creating reply, ID + What
+          radio.write(comReply, sizeof(comReply));
+          if (debug) { Serial.println("Replied: " + String(comReply));}
+  
+        //Anything else
+        } else {
+          if (debug) { Serial.println("Didn't understand '" + stringCom + "'");}
+        }
+      } else {
+        if (debug) { Serial.println("No commands available");}
+      }
+      
+      radio.stopListening(); //Stop listening
+  
+      if (!alarmArmed) {delay(1000); if (debug) {Serial.println("Not armed, sleeping for a bit...");} } //Delay if alarmed is not armed.
+      
+    }
+
+  //If alarm is triggered!
+  } else {
+    if (debug) { Serial.println("Alarm has been triggered!");}
+    char comReply[] = "1,MOTION"; //Creating reply, ID + What
+    radio.write(comReply, sizeof(comReply));
+    if (debug) { Serial.println("Messaging base again!");}
+
+    delay(100); //Waiting so we don't spam the network
+    if (debug) {Serial.println("Sleeping for a bit...");}
+  } 
+  
+  if (debug) { Serial.println("Loop complete!"); Serial.println("");}
+}
+/*
 void loop() {
  
   radio.startListening();
@@ -57,23 +153,29 @@ void loop() {
   }
   delay(100);
 
-}
+}*/
 
 
 
 
 
-//void loop() {
+
+
+
+
+
+/*
+void loop() {
  
-  //const char text[] = "Motion!";
-  //Serial.println(digitalRead(pinIntMotion));
-  ///if (digitalRead(pinIntMotion) == 1) {
+  const char text[] = "Motion!";
+  Serial.println(digitalRead(pinIntMotion));
+  if (digitalRead(pinIntMotion) == 1) {
     //tone(pinIntSpeaker, 2000, 20); 
-    //Serial.println(text);
-    //radio.write(&text, sizeof(text));
+    Serial.println(text);
+    radio.write(&text, sizeof(text));
 
-  //}
+  }
   
-  //delay(100);
+  delay(100);
 
-//} 
+}*/ 
